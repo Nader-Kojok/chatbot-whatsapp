@@ -1,0 +1,223 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Utilisateurs WhatsApp
+model User {
+  id          String   @id @default(cuid())
+  phoneNumber String   @unique @map("phone_number")
+  name        String?
+  language    String   @default("fr") // fr, en
+  status      UserStatus @default(ACTIVE)
+  preferences Json?    // Préférences utilisateur (notifications, etc.)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  conversations Conversation[]
+  tickets       Ticket[]
+  
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  INACTIVE
+}
+
+// Sessions de conversation
+model Conversation {
+  id        String            @id @default(cuid())
+  userId    String            @map("user_id")
+  status    ConversationStatus @default(ACTIVE)
+  context   Json?             // État de la conversation, variables, etc.
+  startedAt DateTime          @default(now()) @map("started_at")
+  endedAt   DateTime?         @map("ended_at")
+  
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+  
+  @@map("conversations")
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ENDED
+  TRANSFERRED
+  PAUSED
+}
+
+// Messages échangés
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String      @map("conversation_id")
+  content        String
+  type           MessageType @default(TEXT)
+  direction      MessageDirection
+  metadata       Json?       // Données supplémentaires (boutons, médias, etc.)
+  timestamp      DateTime    @default(now())
+  processed      Boolean     @default(false)
+  
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  VIDEO
+  DOCUMENT
+  LOCATION
+  CONTACT
+  INTERACTIVE
+  BUTTON
+  LIST
+}
+
+enum MessageDirection {
+  INCOMING
+  OUTGOING
+}
+
+// Tickets de support
+model Ticket {
+  id          String       @id @default(cuid())
+  userId      String       @map("user_id")
+  title       String
+  description String
+  status      TicketStatus @default(OPEN)
+  priority    TicketPriority @default(NORMAL)
+  category    String?
+  assignedAgent String?    @map("assigned_agent")
+  resolution  String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  resolvedAt  DateTime?    @map("resolved_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("tickets")
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// Base de connaissances
+model KnowledgeBase {
+  id          String   @id @default(cuid())
+  question    String
+  answer      String
+  category    String
+  language    String   @default("fr")
+  keywords    String[] // Mots-clés pour la recherche
+  usageCount  Int      @default(0) @map("usage_count")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@map("knowledge_base")
+}
+
+// Agents humains
+model Agent {
+  id          String      @id @default(cuid())
+  name        String
+  email       String      @unique
+  phone       String?
+  status      AgentStatus @default(OFFLINE)
+  languages   String[]    // Langues supportées
+  maxTickets  Int         @default(10) @map("max_tickets")
+  currentLoad Int         @default(0) @map("current_load")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  
+  @@map("agents")
+}
+
+enum AgentStatus {
+  ONLINE
+  OFFLINE
+  BUSY
+  AWAY
+}
+
+// Intents NLP détectés
+model Intent {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  patterns    String[] // Patterns de reconnaissance
+  responses   String[] // Réponses possibles
+  actions     Json?    // Actions à exécuter
+  confidence  Float    @default(0.0)
+  language    String   @default("fr")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@map("intents")
+}
+
+// Templates de messages
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  content   String
+  type      MessageType @default(TEXT)
+  language  String   @default("fr")
+  variables Json?    // Variables dynamiques
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  @@map("message_templates")
+}
+
+// Logs d'activité
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  action    String
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  timestamp DateTime @default(now())
+  
+  @@map("activity_logs")
+}
+
+// Configuration système
+model SystemConfig {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  String @default("string") // string, number, boolean, json
+  
+  @@map("system_config")
+}
