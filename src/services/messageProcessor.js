@@ -249,6 +249,14 @@ class MessageProcessor {
         return await this.handleGreeting(user, session);
       
       case 'help':
+        // For simple help requests, provide direct information
+        if (originalText.toLowerCase().includes('qui tu es') || originalText.toLowerCase().includes('qui es-tu') || 
+            originalText.toLowerCase().includes('who are you') || originalText.toLowerCase().includes('what are you')) {
+          return {
+            type: 'text',
+            content: this.getLocalizedMessage('bot.introduction', user.language)
+          };
+        }
         return await this.handleHelp(user, session);
       
       case 'create_ticket':
@@ -265,6 +273,17 @@ class MessageProcessor {
       
       case 'goodbye':
         return await this.handleGoodbye(user, session);
+      
+      // Handle questions about the bot's capabilities
+      case 'product_inquiry':
+        if (originalText.toLowerCase().includes('que peux-tu faire') || originalText.toLowerCase().includes('tes capacités') ||
+            originalText.toLowerCase().includes('what can you do') || originalText.toLowerCase().includes('capabilities')) {
+          return {
+            type: 'text',
+            content: this.getLocalizedMessage('bot.capabilities', user.language)
+          };
+        }
+        return await this.getFallbackResponse(user, session, originalText);
       
       default:
         return await this.getFallbackResponse(user, session, originalText);
@@ -561,12 +580,25 @@ class MessageProcessor {
         'buttons.contact_agent': 'Contacter un agent',
         'help.main_text': 'Voici comment je peux vous aider :',
         'help.button_text': 'Choisir une option',
+        'help.tickets.title': 'Gestion des tickets',
+        'help.tickets.create': 'Créer un ticket',
+        'help.tickets.create_desc': 'Signaler un problème ou faire une demande',
+        'help.tickets.check': 'Vérifier un ticket',
+        'help.tickets.check_desc': 'Suivre l\'état de votre demande',
+        'help.support.title': 'Support client',
+        'help.support.faq': 'Questions fréquentes',
+        'help.support.faq_desc': 'Réponses aux questions courantes',
+        'help.support.agent': 'Parler à un agent',
+        'help.support.agent_desc': 'Être mis en relation avec un humain',
         'faq.main_text': 'Voici les questions fréquemment posées. Que souhaitez-vous savoir ?',
         'faq.products': 'Nos produits',
         'faq.support': 'Support technique',
         'handoff.initiated': 'Je vous mets en relation avec un agent humain. Veuillez patienter...',
         'error.general': 'Désolé, une erreur s\'est produite. Veuillez réessayer.',
-        'fallback.message': 'Je n\'ai pas bien compris votre demande. Pouvez-vous reformuler ou choisir une option ci-dessous ?'
+        'fallback.message': 'Je n\'ai pas bien compris votre demande. Pouvez-vous reformuler ou choisir une option ci-dessous ?',
+        'bot.introduction': 'Je suis votre assistant virtuel. Je peux vous aider avec vos questions, créer des tickets de support, et vous mettre en relation avec nos agents si nécessaire.',
+        'bot.capabilities': 'Je peux vous aider à :\n• Répondre à vos questions\n• Créer des tickets de support\n• Vous connecter avec un agent humain\n• Fournir des informations sur nos services',
+        'goodbye.message': 'Merci d\'avoir utilisé notre service. N\'hésitez pas à revenir si vous avez d\'autres questions. Bonne journée !'
       },
       en: {
         'greeting.morning': `Good morning ${params.name || 'dear customer'}! How can I help you today?`,
@@ -577,12 +609,25 @@ class MessageProcessor {
         'buttons.contact_agent': 'Contact agent',
         'help.main_text': 'Here\'s how I can help you:',
         'help.button_text': 'Choose an option',
+        'help.tickets.title': 'Ticket Management',
+        'help.tickets.create': 'Create a ticket',
+        'help.tickets.create_desc': 'Report an issue or make a request',
+        'help.tickets.check': 'Check a ticket',
+        'help.tickets.check_desc': 'Track the status of your request',
+        'help.support.title': 'Customer Support',
+        'help.support.faq': 'Frequently Asked Questions',
+        'help.support.faq_desc': 'Answers to common questions',
+        'help.support.agent': 'Talk to an agent',
+        'help.support.agent_desc': 'Connect with a human representative',
         'faq.main_text': 'Here are frequently asked questions. What would you like to know?',
         'faq.products': 'Our products',
         'faq.support': 'Technical support',
         'handoff.initiated': 'I\'m connecting you with a human agent. Please wait...',
         'error.general': 'Sorry, an error occurred. Please try again.',
-        'fallback.message': 'I didn\'t understand your request. Could you rephrase or choose an option below?'
+        'fallback.message': 'I didn\'t understand your request. Could you rephrase or choose an option below?',
+        'bot.introduction': 'I am your virtual assistant. I can help you with your questions, create support tickets, and connect you with our agents when needed.',
+        'bot.capabilities': 'I can help you with:\n• Answering your questions\n• Creating support tickets\n• Connecting you with human agents\n• Providing information about our services',
+        'goodbye.message': 'Thank you for using our service. Feel free to come back if you have any other questions. Have a great day!'
       }
     };
 
@@ -724,6 +769,10 @@ class MessageProcessor {
   }
 
   async handleGoodbye(user, session) {
+    // Mark session as ended
+    session.status = 'ENDED';
+    await this.sessionService.setSession(user.id, session);
+    
     return {
       type: 'text',
       content: this.getLocalizedMessage('goodbye.message', user.language)
