@@ -26,14 +26,16 @@ const verifyWebhookSignature = (req, res, next) => {
     return res.status(401).json({ error: 'Signature manquante' });
   }
 
-  const payload = JSON.stringify(req.body);
+  // Use raw body for signature verification (more reliable with proxies)
+  const payload = req.rawBody || JSON.stringify(req.body);
   const isValid = whatsappService.verifyWebhookSignature(payload, signature);
   
   if (!isValid) {
     logger.logSecurity('Invalid webhook signature', {
       signature,
       ip: req.ip,
-      userAgent: req.get('User-Agent')
+      userAgent: req.get('User-Agent'),
+      payloadLength: payload.length
     });
     return res.status(401).json({ error: 'Signature invalide' });
   }

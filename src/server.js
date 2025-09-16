@@ -38,6 +38,13 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
+// Middleware pour capturer le raw body (nécessaire pour la vérification des signatures webhook)
+app.use('/webhook', express.raw({ type: 'application/json', limit: '10mb' }), (req, res, next) => {
+  req.rawBody = req.body;
+  req.body = JSON.parse(req.body);
+  next();
+});
+
 // Middleware de parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
