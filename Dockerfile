@@ -9,7 +9,14 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
+    openssl \
+    openssl-dev \
     && rm -rf /var/cache/apk/*
+
+# Définir les variables d'environnement pour OpenSSL
+ENV OPENSSL_CONF=/dev/null
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node
+ENV PRISMA_QUERY_ENGINE_BINARY=/app/node_modules/.prisma/client/query-engine-linux-musl-openssl-3.0.x
 
 # Copier les fichiers de dépendances
 COPY package*.json ./
