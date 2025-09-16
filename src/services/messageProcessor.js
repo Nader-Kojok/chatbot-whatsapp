@@ -154,7 +154,20 @@ class MessageProcessor {
         };
       }
       
-      // Fallback: proposer des options ou transfert
+      // Try to generate a helpful response using AI before falling back to menu
+      try {
+        const aiResponse = await this.generateAIResponse(text, user.language);
+        if (aiResponse && aiResponse.length > 10) {
+          return {
+            type: 'text',
+            content: aiResponse
+          };
+        }
+      } catch (error) {
+        logger.error('Error generating AI response:', error);
+      }
+      
+      // Final fallback: proposer des options ou transfert
       return await this.getFallbackResponse(user, session, text);
     }
   }
@@ -646,10 +659,15 @@ class MessageProcessor {
   }
 
   async getFallbackResponse(user, session, text) {
+    // Provide a more conversational fallback with helpful suggestions
+    const fallbackText = user.language === 'fr' 
+      ? `Je comprends que vous cherchez de l'aide, mais je n'ai pas pu saisir exactement votre demande. Voici quelques suggestions :\n\n• Essayez de reformuler votre question plus simplement\n• Utilisez des mots-clés comme "aide", "problème", ou "information"\n• Ou choisissez une option ci-dessous pour que je puisse mieux vous aider`
+      : `I understand you're looking for help, but I couldn't quite grasp your request. Here are some suggestions:\n\n• Try rephrasing your question more simply\n• Use keywords like "help", "problem", or "information"\n• Or choose an option below so I can better assist you`;
+    
     return {
       type: 'interactive',
       content: {
-        text: this.getLocalizedMessage('fallback.message', user.language),
+        text: fallbackText,
         buttons: [
           {
             id: 'help',
@@ -777,6 +795,44 @@ class MessageProcessor {
       type: 'text',
       content: this.getLocalizedMessage('goodbye.message', user.language)
     };
+  }
+
+  // Generate AI response for general questions
+  async generateAIResponse(text, language) {
+    try {
+      const prompt = language === 'fr' 
+        ? `Tu es un assistant client professionnel et bienveillant. Réponds à cette question de manière utile et concise en français. Si tu ne peux pas répondre précisément, propose des alternatives ou suggère de contacter un agent humain. Question: "${text}"`
+        : `You are a professional and helpful customer assistant. Answer this question in a useful and concise way in English. If you cannot answer precisely, suggest alternatives or recommend contacting a human agent. Question: "${text}"`;
+
+      const response = await this.nlpService.model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: 200,
+          temperature: 0.7
+        }
+      });
+
+      const aiResponse = response.response.text().trim();
+      
+      // Filter out responses that are too generic or unhelpful
+      const unhelpfulPhrases = [
+        'je ne peux pas', 'i cannot', 'i don\'t know', 'je ne sais pas',
+        'désolé', 'sorry', 'je ne comprends pas', 'i don\'t understand'
+      ];
+      
+      const isUnhelpful = unhelpfulPhrases.some(phrase => 
+        aiResponse.toLowerCase().includes(phrase.toLowerCase())
+      );
+      
+      if (isUnhelpful || aiResponse.length < 20) {
+        return null; // Let it fall back to menu
+      }
+      
+      return aiResponse;
+    } catch (error) {
+      logger.error('Error generating AI response:', error);
+      return null;
+    }
   }
 }
 
