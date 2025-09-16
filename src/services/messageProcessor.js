@@ -265,7 +265,7 @@ class MessageProcessor {
             originalText.toLowerCase().includes('who are you') || originalText.toLowerCase().includes('what are you')) {
           return {
             type: 'text',
-            content: this.getLocalizedMessage('bot.introduction', user.language)
+            content: this.localizationService.getLocalizedMessage('bot.introduction', user.language)
           };
         }
         return await this.handleHelp(user, session);
@@ -291,7 +291,7 @@ class MessageProcessor {
             originalText.toLowerCase().includes('what can you do') || originalText.toLowerCase().includes('capabilities')) {
           return {
             type: 'text',
-            content: this.getLocalizedMessage('bot.capabilities', user.language)
+            content: this.localizationService.getLocalizedMessage('bot.capabilities', user.language)
           };
         }
         return await this.getFallbackResponse(user, session, originalText);
@@ -304,7 +304,7 @@ class MessageProcessor {
   // Gérer les salutations
   async handleGreeting(user, session) {
     const timeOfDay = this.getTimeOfDay();
-    const greeting = this.getLocalizedMessage(`greeting.${timeOfDay}`, user.language, {
+    const greeting = this.localizationService.getLocalizedMessage(`greeting.${timeOfDay}`, user.language, {
       name: user.name || 'cher client'
     });
 
@@ -315,15 +315,15 @@ class MessageProcessor {
         buttons: [
           {
             id: 'help',
-            title: this.getLocalizedMessage('buttons.help', user.language)
+            title: this.localizationService.getLocalizedMessage('buttons.help', user.language)
           },
           {
             id: 'faq',
-            title: this.getLocalizedMessage('buttons.faq', user.language)
+            title: this.localizationService.getLocalizedMessage('buttons.faq', user.language)
           },
           {
             id: 'contact_agent',
-            title: this.getLocalizedMessage('buttons.contact_agent', user.language)
+            title: this.localizationService.getLocalizedMessage('buttons.contact_agent', user.language)
           }
         ]
       }
@@ -334,32 +334,32 @@ class MessageProcessor {
   async handleHelp(user, session) {
     const helpSections = [
       {
-        title: this.getLocalizedMessage('help.tickets.title', user.language),
+        title: this.localizationService.getLocalizedMessage('help.tickets.title', user.language),
         rows: [
           {
             id: 'create_ticket',
-            title: this.getLocalizedMessage('help.tickets.create', user.language),
-            description: this.getLocalizedMessage('help.tickets.create_desc', user.language)
+            title: this.localizationService.getLocalizedMessage('help.tickets.create', user.language),
+            description: this.localizationService.getLocalizedMessage('help.tickets.create_desc', user.language)
           },
           {
             id: 'check_ticket',
-            title: this.getLocalizedMessage('help.tickets.check', user.language),
-            description: this.getLocalizedMessage('help.tickets.check_desc', user.language)
+            title: this.localizationService.getLocalizedMessage('help.tickets.check', user.language),
+            description: this.localizationService.getLocalizedMessage('help.tickets.check_desc', user.language)
           }
         ]
       },
       {
-        title: this.getLocalizedMessage('help.support.title', user.language),
+        title: this.localizationService.getLocalizedMessage('help.support.title', user.language),
         rows: [
           {
             id: 'faq',
-            title: this.getLocalizedMessage('help.support.faq', user.language),
-            description: this.getLocalizedMessage('help.support.faq_desc', user.language)
+            title: this.localizationService.getLocalizedMessage('help.support.faq', user.language),
+            description: this.localizationService.getLocalizedMessage('help.support.faq_desc', user.language)
           },
           {
             id: 'contact_agent',
-            title: this.getLocalizedMessage('help.support.agent', user.language),
-            description: this.getLocalizedMessage('help.support.agent_desc', user.language)
+            title: this.localizationService.getLocalizedMessage('help.support.agent', user.language),
+            description: this.localizationService.getLocalizedMessage('help.support.agent_desc', user.language)
           }
         ]
       }
@@ -368,8 +368,8 @@ class MessageProcessor {
     return {
       type: 'list',
       content: {
-        text: this.getLocalizedMessage('help.main_text', user.language),
-        buttonText: this.getLocalizedMessage('help.button_text', user.language),
+        text: this.localizationService.getLocalizedMessage('help.main_text', user.language),
+        buttonText: this.localizationService.getLocalizedMessage('help.button_text', user.language),
         sections: helpSections
       }
     };
@@ -576,6 +576,17 @@ class MessageProcessor {
     };
   }
 
+  // Obtenir le moment de la journée
+  getTimeOfDay() {
+    const hour = new Date().getHours();
+    if (hour < 12) {
+      return 'morning';
+    } else if (hour < 18) {
+      return 'afternoon';
+    } else {
+      return 'evening';
+    }
+  }
 
 }
 
