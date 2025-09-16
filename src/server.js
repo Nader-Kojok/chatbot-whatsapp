@@ -90,11 +90,11 @@ async function initializeServer() {
     logger.info('Redis connecté avec succès');
 
     // Démarrer le serveur
-    const server = app.listen(PORT, () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       logger.info(`🚀 Serveur démarré sur le port ${PORT}`);
       logger.info(`🌍 Environnement: ${process.env.NODE_ENV}`);
-      logger.info(`📱 WhatsApp Webhook: http://localhost:${PORT}/webhook`);
-      logger.info(`🔗 API: http://localhost:${PORT}/api`);
+      logger.info(`📱 WhatsApp Webhook: http://0.0.0.0:${PORT}/webhook`);
+      logger.info(`🔗 API: http://0.0.0.0:${PORT}/api`);
     });
 
     // Gestion gracieuse de l'arrêt
