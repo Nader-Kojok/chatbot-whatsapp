@@ -28,6 +28,7 @@ RUN npx prisma generate
 
 # Copier le code source
 COPY src ./src/
+COPY test-server.js ./
 
 # Créer un utilisateur non-root
 RUN addgroup -g 1001 -S nodejs
