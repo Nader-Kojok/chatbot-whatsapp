@@ -371,15 +371,19 @@ class IntentHandler {
         ? `Tu es un assistant client professionnel et bienveillant. Réponds à cette question de manière utile et concise en français. Si tu ne peux pas répondre précisément, propose des alternatives ou suggère de contacter un agent humain. Question: "${text}"`
         : `You are a professional and helpful customer assistant. Answer this question in a useful and concise way in English. If you cannot answer precisely, suggest alternatives or recommend contacting a human agent. Question: "${text}"`;
 
-      const response = await this.nlpService.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          maxOutputTokens: 200,
-          temperature: 0.7
-        }
+      const response = await this.nlpService.openai.chat.completions.create({
+        model: this.nlpService.model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 200,
+        temperature: 0.7
       });
 
-      const aiResponse = response.response.text().trim();
+      const aiResponse = response.choices[0].message.content.trim();
       
       // Filter out responses that are too generic or unhelpful
       // Only filter if the response is very short or contains multiple unhelpful phrases

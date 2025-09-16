@@ -277,6 +277,14 @@ class MessageProcessor {
         return await this.handleCheckTicketStatus(user, session, entities);
       
       case 'faq':
+        // Handle "who are you" questions that get classified as FAQ
+        if (originalText.toLowerCase().includes('qui tu es') || originalText.toLowerCase().includes('qui es-tu') || 
+            originalText.toLowerCase().includes('who are you') || originalText.toLowerCase().includes('what are you')) {
+          return {
+            type: 'text',
+            content: this.localizationService.getLocalizedMessage('bot.introduction', user.language)
+          };
+        }
         return await this.handleFAQ(user, session, entities, originalText);
       
       case 'contact_agent':
