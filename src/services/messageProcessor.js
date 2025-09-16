@@ -4,11 +4,16 @@ const WhatsAppService = require('./whatsappService');
 const NLPService = require('./nlpService');
 const TicketService = require('./ticketService');
 const KnowledgeBaseService = require('./knowledgeBaseService');
+const MessageLocalizationService = require('./messageLocalizationService');
+const MessageFormatter = require('./messageFormatter');
+const TicketMessageHandler = require('./ticketMessageHandler');
+const IntentHandler = require('./intentHandler');
 const logger = require('../utils/logger');
 const { v4: uuidv4 } = require('uuid');
 
 class MessageProcessor {
   constructor() {
+    // Core services
     this.whatsappService = new WhatsAppService();
     this.nlpService = new NLPService();
     this.ticketService = new TicketService();
@@ -17,12 +22,28 @@ class MessageProcessor {
     this.sessionService = new SessionService();
     this.prisma = null;
     
+    // New specialized services
+    this.localizationService = new MessageLocalizationService();
+    this.messageFormatter = new MessageFormatter();
+    this.ticketMessageHandler = new TicketMessageHandler(
+      this.ticketService,
+      this.localizationService,
+      this.messageFormatter
+    );
+    this.intentHandler = new IntentHandler(
+      this.localizationService,
+      this.messageFormatter,
+      this.ticketMessageHandler,
+      this.knowledgeBaseService,
+      this.nlpService
+    );
+    
     // Configuration
     this.maxConversationDuration = parseInt(process.env.MAX_CONVERSATION_DURATION) || 3600; // 1 heure
     this.confidenceThreshold = parseFloat(process.env.NLP_CONFIDENCE_THRESHOLD) || 0.5; // Industry standard: 50%
     this.knowledgeBaseThreshold = parseFloat(process.env.KB_CONFIDENCE_THRESHOLD) || 0.4; // Lower threshold for KB
-    this.defaultLanguage = process.env.DEFAULT_LANGUAGE || 'fr';
-    this.supportedLanguages = (process.env.SUPPORTED_LANGUAGES || 'fr,en').split(',');
+    this.defaultLanguage = this.localizationService.getDefaultLanguage();
+    this.supportedLanguages = this.localizationService.getSupportedLanguages();
   }
 
   // Initialiser le processeur
@@ -125,8 +146,8 @@ class MessageProcessor {
     }
 
     // Vérifier les mots-clés de transfert vers agent humain
-    if (this.shouldTransferToHuman(text, user.language)) {
-      return await this.initiateHumanHandoff(user, session, text);
+    if (this.intentHandler.shouldTransferToHuman(text, user.language)) {
+      return await this.intentHandler.initiateHumanHandoff(user, session, text);
     }
 
     // Analyser l'intent avec NLP
@@ -142,7 +163,7 @@ class MessageProcessor {
 
     // Traiter selon l'intent détecté
     if (nlpResult.confidence >= this.confidenceThreshold) {
-      return await this.handleIntent(nlpResult, user, session, text);
+      return await this.intentHandler.handleIntent(nlpResult, user, session, text);
     } else {
       // Rechercher dans la base de connaissances
       const kbResult = await this.knowledgeBaseService.search(text, user.language);
@@ -156,7 +177,7 @@ class MessageProcessor {
       
       // Try to generate a helpful response using AI before falling back to menu
       try {
-        const aiResponse = await this.generateAIResponse(text, user.language);
+        const aiResponse = await this.intentHandler.generateAIResponse(text, user.language);
         if (aiResponse && aiResponse.length > 10) {
           return {
             type: 'text',
@@ -168,7 +189,7 @@ class MessageProcessor {
       }
       
       // Final fallback: proposer des options ou transfert
-      return await this.getFallbackResponse(user, session, text);
+      return await this.intentHandler.getFallbackResponse(user, session, text);
     }
   }
 
@@ -178,9 +199,9 @@ class MessageProcessor {
     
     // Traiter selon le type d'interaction
     if (content.buttonId) {
-      return await this.handleButtonClick(content.buttonId, content.buttonTitle, user, session);
+      return await this.intentHandler.handleButtonClick(content.buttonId, content.buttonTitle, user, session);
     } else if (content.listId) {
-      return await this.handleListSelection(content.listId, content.listTitle, user, session);
+      return await this.intentHandler.handleListSelection(content.listId, content.listTitle, user, session);
     }
     
     return await this.getDefaultResponse(user.language);
@@ -208,30 +229,10 @@ class MessageProcessor {
     }
 
     // Réponse selon le type de média
-    switch (mediaType) {
-      case 'image':
-        return {
-          type: 'text',
-          content: this.getLocalizedMessage('media.image_received', user.language)
-        };
-      case 'audio':
-        return {
-          type: 'text',
-          content: this.getLocalizedMessage('media.audio_received', user.language)
-        };
-      case 'video':
-        return {
-          type: 'text',
-          content: this.getLocalizedMessage('media.video_received', user.language)
-        };
-      case 'document':
-        return {
-          type: 'text',
-          content: this.getLocalizedMessage('media.document_received', user.language)
-        };
-      default:
-        return await this.getDefaultResponse(user.language);
-    }
+    return {
+      type: 'text',
+      content: this.messageFormatter.formatMediaMessage(mediaType, user.language, this.localizationService)
+    };
   }
 
   // Traiter un message de localisation
@@ -246,10 +247,7 @@ class MessageProcessor {
 
     return {
       type: 'text',
-      content: this.getLocalizedMessage('location.received', user.language, {
-        name: location.name || 'Position',
-        address: location.address || 'Adresse non disponible'
-      })
+      content: this.messageFormatter.formatLocationMessage(location, user.language, this.localizationService)
     };
   }
 
@@ -531,7 +529,7 @@ class MessageProcessor {
         default:
           result = await this.whatsappService.sendTextMessage(
             phoneNumber,
-            this.getLocalizedMessage('error.unknown_response_type', language)
+            this.localizationService.getLocalizedMessage('error.unknown_response_type', language)
           );
       }
 
@@ -556,19 +554,6 @@ class MessageProcessor {
   }
 
   // Fonctions utilitaires
-  shouldTransferToHuman(text, language) {
-    const keywords = process.env.AUTO_HANDOFF_KEYWORDS?.split(',') || ['agent', 'humain', 'personne', 'help', 'aide'];
-    const lowerText = text.toLowerCase();
-    return keywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
-  }
-
-  getTimeOfDay() {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'morning';
-    if (hour < 18) return 'afternoon';
-    return 'evening';
-  }
-
   async updateUserLanguage(userId, language) {
     try {
       await this.prisma.user.update({
@@ -580,260 +565,18 @@ class MessageProcessor {
     }
   }
 
-  getLocalizedMessage(key, language, params = {}) {
-    // Ici on devrait implémenter un système de localisation complet
-    // Pour l'instant, on retourne des messages basiques
-    const messages = {
-      fr: {
-        'greeting.morning': `Bonjour ${params.name || 'cher client'} ! Comment puis-je vous aider aujourd'hui ?`,
-        'greeting.afternoon': `Bon après-midi ${params.name || 'cher client'} ! Comment puis-je vous aider ?`,
-        'greeting.evening': `Bonsoir ${params.name || 'cher client'} ! Comment puis-je vous aider ce soir ?`,
-        'buttons.help': 'Aide',
-        'buttons.faq': 'FAQ',
-        'buttons.contact_agent': 'Contacter un agent',
-        'help.main_text': 'Voici comment je peux vous aider :',
-        'help.button_text': 'Choisir une option',
-        'help.tickets.title': 'Gestion des tickets',
-        'help.tickets.create': 'Créer un ticket',
-        'help.tickets.create_desc': 'Signaler un problème ou faire une demande',
-        'help.tickets.check': 'Vérifier un ticket',
-        'help.tickets.check_desc': 'Suivre l\'état de votre demande',
-        'help.support.title': 'Support client',
-        'help.support.faq': 'Questions fréquentes',
-        'help.support.faq_desc': 'Réponses aux questions courantes',
-        'help.support.agent': 'Parler à un agent',
-        'help.support.agent_desc': 'Être mis en relation avec un humain',
-        'faq.main_text': 'Voici les questions fréquemment posées. Que souhaitez-vous savoir ?',
-        'faq.products': 'Nos produits',
-        'faq.support': 'Support technique',
-        'handoff.initiated': 'Je vous mets en relation avec un agent humain. Veuillez patienter...',
-        'error.general': 'Désolé, une erreur s\'est produite. Veuillez réessayer.',
-        'fallback.message': 'Je n\'ai pas bien compris votre demande. Pouvez-vous reformuler ou choisir une option ci-dessous ?',
-        'bot.introduction': 'Je suis votre assistant virtuel. Je peux vous aider avec vos questions, créer des tickets de support, et vous mettre en relation avec nos agents si nécessaire.',
-        'bot.capabilities': 'Je peux vous aider à :\n• Répondre à vos questions\n• Créer des tickets de support\n• Vous connecter avec un agent humain\n• Fournir des informations sur nos services',
-        'goodbye.message': 'Merci d\'avoir utilisé notre service. N\'hésitez pas à revenir si vous avez d\'autres questions. Bonne journée !'
-      },
-      en: {
-        'greeting.morning': `Good morning ${params.name || 'dear customer'}! How can I help you today?`,
-        'greeting.afternoon': `Good afternoon ${params.name || 'dear customer'}! How can I help you?`,
-        'greeting.evening': `Good evening ${params.name || 'dear customer'}! How can I help you tonight?`,
-        'buttons.help': 'Help',
-        'buttons.faq': 'FAQ',
-        'buttons.contact_agent': 'Contact agent',
-        'help.main_text': 'Here\'s how I can help you:',
-        'help.button_text': 'Choose an option',
-        'help.tickets.title': 'Ticket Management',
-        'help.tickets.create': 'Create a ticket',
-        'help.tickets.create_desc': 'Report an issue or make a request',
-        'help.tickets.check': 'Check a ticket',
-        'help.tickets.check_desc': 'Track the status of your request',
-        'help.support.title': 'Customer Support',
-        'help.support.faq': 'Frequently Asked Questions',
-        'help.support.faq_desc': 'Answers to common questions',
-        'help.support.agent': 'Talk to an agent',
-        'help.support.agent_desc': 'Connect with a human representative',
-        'faq.main_text': 'Here are frequently asked questions. What would you like to know?',
-        'faq.products': 'Our products',
-        'faq.support': 'Technical support',
-        'handoff.initiated': 'I\'m connecting you with a human agent. Please wait...',
-        'error.general': 'Sorry, an error occurred. Please try again.',
-        'fallback.message': 'I didn\'t understand your request. Could you rephrase or choose an option below?',
-        'bot.introduction': 'I am your virtual assistant. I can help you with your questions, create support tickets, and connect you with our agents when needed.',
-        'bot.capabilities': 'I can help you with:\n• Answering your questions\n• Creating support tickets\n• Connecting you with human agents\n• Providing information about our services',
-        'goodbye.message': 'Thank you for using our service. Feel free to come back if you have any other questions. Have a great day!'
-      }
-    };
-
-    return messages[language]?.[key] || messages[this.defaultLanguage]?.[key] || key;
-  }
-
   getErrorMessage(language) {
-    return this.getLocalizedMessage('error.general', language);
+    return this.localizationService.getErrorMessage(language);
   }
 
   async getDefaultResponse(language) {
     return {
       type: 'text',
-      content: this.getLocalizedMessage('fallback.message', language)
+      content: this.localizationService.getFallbackMessage(language)
     };
   }
 
-  async getFallbackResponse(user, session, text) {
-    // Provide a more conversational fallback with helpful suggestions
-    const fallbackText = user.language === 'fr' 
-      ? `Je comprends que vous cherchez de l'aide, mais je n'ai pas pu saisir exactement votre demande. Voici quelques suggestions :\n\n• Essayez de reformuler votre question plus simplement\n• Utilisez des mots-clés comme "aide", "problème", ou "information"\n• Ou choisissez une option ci-dessous pour que je puisse mieux vous aider`
-      : `I understand you're looking for help, but I couldn't quite grasp your request. Here are some suggestions:\n\n• Try rephrasing your question more simply\n• Use keywords like "help", "problem", or "information"\n• Or choose an option below so I can better assist you`;
-    
-    return {
-      type: 'interactive',
-      content: {
-        text: fallbackText,
-        buttons: [
-          {
-            id: 'help',
-            title: this.getLocalizedMessage('buttons.help', user.language)
-          },
-          {
-            id: 'faq',
-            title: this.getLocalizedMessage('buttons.faq', user.language)
-          },
-          {
-            id: 'contact_agent',
-            title: this.getLocalizedMessage('buttons.contact_agent', user.language)
-          }
-        ]
-      }
-    };
-  }
 
-  // Placeholder pour les autres méthodes
-  async handleButtonClick(buttonId, buttonTitle, user, session) {
-    logger.logWhatsApp('Button Click Received', {
-      buttonId,
-      buttonTitle,
-      userId: user.id
-    });
-
-    // Traiter selon l'ID du bouton
-    switch (buttonId) {
-      case 'help':
-      case 'aide':
-        return await this.handleHelp(user, session);
-      
-      case 'faq':
-        return await this.handleFAQ(user, session, [], buttonTitle);
-      
-      case 'contact_agent':
-      case 'contacter_agent':
-        return await this.initiateHumanHandoff(user, session, buttonTitle);
-      
-      case 'greeting':
-      case 'salutation':
-        return await this.handleGreeting(user, session);
-      
-      default:
-        // Traiter le titre du bouton comme un message texte
-        const textMessageData = {
-          ...session,
-          messageType: 'text',
-          content: { text: buttonTitle }
-        };
-        return await this.processTextMessage(textMessageData, user, session);
-    }
-  }
-
-  async handleListSelection(listId, listTitle, user, session) {
-    // À implémenter
-    return await this.getDefaultResponse(user.language);
-  }
-
-  async handleCreateTicket(user, session, entities, originalText) {
-    // À implémenter avec TicketService
-    return await this.getDefaultResponse(user.language);
-  }
-
-  async handleCheckTicketStatus(user, session, entities) {
-    // À implémenter avec TicketService
-    return await this.getDefaultResponse(user.language);
-  }
-
-  async handleFAQ(user, session, entities, originalText) {
-    logger.logWhatsApp('FAQ Request', {
-      userId: user.id,
-      originalText: originalText?.substring(0, 100)
-    });
-
-    // Rechercher dans la base de connaissances
-    if (originalText) {
-      const kbResult = await this.knowledgeBaseService.search(originalText, user.language);
-      
-      if (kbResult && kbResult.confidence > 0.5) {
-        return {
-          type: 'text',
-          content: kbResult.answer
-        };
-      }
-    }
-
-    // Réponse FAQ générale avec options
-    return {
-      type: 'interactive',
-      content: {
-        text: this.getLocalizedMessage('faq.main_text', user.language),
-        buttons: [
-          {
-            id: 'faq_products',
-            title: this.getLocalizedMessage('faq.products', user.language)
-          },
-          {
-            id: 'faq_support',
-            title: this.getLocalizedMessage('faq.support', user.language)
-          },
-          {
-            id: 'contact_agent',
-            title: this.getLocalizedMessage('buttons.contact_agent', user.language)
-          }
-        ]
-      }
-    };
-  }
-
-  async initiateHumanHandoff(user, session, originalText) {
-    // À implémenter
-    return {
-      type: 'text',
-      content: this.getLocalizedMessage('handoff.initiated', user.language)
-    };
-  }
-
-  async handleGoodbye(user, session) {
-    // Mark session as ended
-    session.status = 'ENDED';
-    await this.sessionService.setSession(user.id, session);
-    
-    return {
-      type: 'text',
-      content: this.getLocalizedMessage('goodbye.message', user.language)
-    };
-  }
-
-  // Generate AI response for general questions
-  async generateAIResponse(text, language) {
-    try {
-      const prompt = language === 'fr' 
-        ? `Tu es un assistant client professionnel et bienveillant. Réponds à cette question de manière utile et concise en français. Si tu ne peux pas répondre précisément, propose des alternatives ou suggère de contacter un agent humain. Question: "${text}"`
-        : `You are a professional and helpful customer assistant. Answer this question in a useful and concise way in English. If you cannot answer precisely, suggest alternatives or recommend contacting a human agent. Question: "${text}"`;
-
-      const response = await this.nlpService.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          maxOutputTokens: 200,
-          temperature: 0.7
-        }
-      });
-
-      const aiResponse = response.response.text().trim();
-      
-      // Filter out responses that are too generic or unhelpful
-      const unhelpfulPhrases = [
-        'je ne peux pas', 'i cannot', 'i don\'t know', 'je ne sais pas',
-        'désolé', 'sorry', 'je ne comprends pas', 'i don\'t understand'
-      ];
-      
-      const isUnhelpful = unhelpfulPhrases.some(phrase => 
-        aiResponse.toLowerCase().includes(phrase.toLowerCase())
-      );
-      
-      if (isUnhelpful || aiResponse.length < 20) {
-        return null; // Let it fall back to menu
-      }
-      
-      return aiResponse;
-    } catch (error) {
-      logger.error('Error generating AI response:', error);
-      return null;
-    }
-  }
 }
 
 module.exports = MessageProcessor;
