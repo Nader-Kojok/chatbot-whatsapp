@@ -19,7 +19,8 @@ class MessageProcessor {
     
     // Configuration
     this.maxConversationDuration = parseInt(process.env.MAX_CONVERSATION_DURATION) || 3600; // 1 heure
-    this.confidenceThreshold = parseFloat(process.env.NLP_CONFIDENCE_THRESHOLD) || 0.7;
+    this.confidenceThreshold = parseFloat(process.env.NLP_CONFIDENCE_THRESHOLD) || 0.5; // Industry standard: 50%
+    this.knowledgeBaseThreshold = parseFloat(process.env.KB_CONFIDENCE_THRESHOLD) || 0.4; // Lower threshold for KB
     this.defaultLanguage = process.env.DEFAULT_LANGUAGE || 'fr';
     this.supportedLanguages = (process.env.SUPPORTED_LANGUAGES || 'fr,en').split(',');
   }
@@ -146,7 +147,7 @@ class MessageProcessor {
       // Rechercher dans la base de connaissances
       const kbResult = await this.knowledgeBaseService.search(text, user.language);
       
-      if (kbResult && kbResult.confidence > 0.6) {
+      if (kbResult && kbResult.confidence > this.knowledgeBaseThreshold) {
         return {
           type: 'text',
           content: kbResult.answer
