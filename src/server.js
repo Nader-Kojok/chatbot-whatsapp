@@ -14,6 +14,9 @@ const { initializeDatabase } = require('./config/database');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configuration du proxy pour Railway
+app.set('trust proxy', 1);
+
 // Configuration de sécurité
 app.use(helmet());
 app.use(cors({
