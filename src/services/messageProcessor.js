@@ -560,6 +560,10 @@ class MessageProcessor {
         'buttons.contact_agent': 'Contacter un agent',
         'help.main_text': 'Voici comment je peux vous aider :',
         'help.button_text': 'Choisir une option',
+        'faq.main_text': 'Voici les questions fréquemment posées. Que souhaitez-vous savoir ?',
+        'faq.products': 'Nos produits',
+        'faq.support': 'Support technique',
+        'handoff.initiated': 'Je vous mets en relation avec un agent humain. Veuillez patienter...',
         'error.general': 'Désolé, une erreur s\'est produite. Veuillez réessayer.',
         'fallback.message': 'Je n\'ai pas bien compris votre demande. Pouvez-vous reformuler ou choisir une option ci-dessous ?'
       },
@@ -572,6 +576,10 @@ class MessageProcessor {
         'buttons.contact_agent': 'Contact agent',
         'help.main_text': 'Here\'s how I can help you:',
         'help.button_text': 'Choose an option',
+        'faq.main_text': 'Here are frequently asked questions. What would you like to know?',
+        'faq.products': 'Our products',
+        'faq.support': 'Technical support',
+        'handoff.initiated': 'I\'m connecting you with a human agent. Please wait...',
         'error.general': 'Sorry, an error occurred. Please try again.',
         'fallback.message': 'I didn\'t understand your request. Could you rephrase or choose an option below?'
       }
@@ -616,8 +624,38 @@ class MessageProcessor {
 
   // Placeholder pour les autres méthodes
   async handleButtonClick(buttonId, buttonTitle, user, session) {
-    // À implémenter
-    return await this.getDefaultResponse(user.language);
+    logger.logWhatsApp('Button Click Received', {
+      buttonId,
+      buttonTitle,
+      userId: user.id
+    });
+
+    // Traiter selon l'ID du bouton
+    switch (buttonId) {
+      case 'help':
+      case 'aide':
+        return await this.handleHelp(user, session);
+      
+      case 'faq':
+        return await this.handleFAQ(user, session, [], buttonTitle);
+      
+      case 'contact_agent':
+      case 'contacter_agent':
+        return await this.initiateHumanHandoff(user, session, buttonTitle);
+      
+      case 'greeting':
+      case 'salutation':
+        return await this.handleGreeting(user, session);
+      
+      default:
+        // Traiter le titre du bouton comme un message texte
+        const textMessageData = {
+          ...session,
+          messageType: 'text',
+          content: { text: buttonTitle }
+        };
+        return await this.processTextMessage(textMessageData, user, session);
+    }
   }
 
   async handleListSelection(listId, listTitle, user, session) {
@@ -636,8 +674,44 @@ class MessageProcessor {
   }
 
   async handleFAQ(user, session, entities, originalText) {
-    // À implémenter avec KnowledgeBaseService
-    return await this.getDefaultResponse(user.language);
+    logger.logWhatsApp('FAQ Request', {
+      userId: user.id,
+      originalText: originalText?.substring(0, 100)
+    });
+
+    // Rechercher dans la base de connaissances
+    if (originalText) {
+      const kbResult = await this.knowledgeBaseService.search(originalText, user.language);
+      
+      if (kbResult && kbResult.confidence > 0.5) {
+        return {
+          type: 'text',
+          content: kbResult.answer
+        };
+      }
+    }
+
+    // Réponse FAQ générale avec options
+    return {
+      type: 'interactive',
+      content: {
+        text: this.getLocalizedMessage('faq.main_text', user.language),
+        buttons: [
+          {
+            id: 'faq_products',
+            title: this.getLocalizedMessage('faq.products', user.language)
+          },
+          {
+            id: 'faq_support',
+            title: this.getLocalizedMessage('faq.support', user.language)
+          },
+          {
+            id: 'contact_agent',
+            title: this.getLocalizedMessage('buttons.contact_agent', user.language)
+          }
+        ]
+      }
+    };
   }
 
   async initiateHumanHandoff(user, session, originalText) {

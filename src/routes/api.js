@@ -3,20 +3,23 @@ const { asyncHandler } = require('../middleware/errorMiddleware');
 const { checkDatabaseHealth } = require('../config/database');
 const { checkRedisHealth } = require('../config/redis');
 const WhatsAppService = require('../services/whatsappService');
+const NLPService = require('../services/nlpService');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 const whatsappService = new WhatsAppService();
+const nlpService = new NLPService();
 
 // GET /api/health - Vérification de santé globale
 router.get('/health', asyncHandler(async (req, res) => {
   const checks = await Promise.allSettled([
     checkDatabaseHealth(),
     checkRedisHealth(),
-    whatsappService.checkAPIHealth()
+    whatsappService.checkAPIHealth(),
+    nlpService.checkHealth()
   ]);
 
-  const [dbHealth, redisHealth, whatsappHealth] = checks.map(result => 
+  const [dbHealth, redisHealth, whatsappHealth, nlpHealth] = checks.map(result => 
     result.status === 'fulfilled' ? result.value : { 
       status: 'unhealthy', 
       error: result.reason?.message || 'Unknown error' 
@@ -26,7 +29,8 @@ router.get('/health', asyncHandler(async (req, res) => {
   const overallStatus = [
     dbHealth.status,
     redisHealth.status,
-    whatsappHealth.status
+    whatsappHealth.status,
+    nlpHealth.status
   ].every(status => status === 'healthy') ? 'healthy' : 'unhealthy';
 
   const healthReport = {
@@ -38,7 +42,8 @@ router.get('/health', asyncHandler(async (req, res) => {
     services: {
       database: dbHealth,
       redis: redisHealth,
-      whatsapp: whatsappHealth
+      whatsapp: whatsappHealth,
+      googleAI: nlpHealth
     },
     system: {
       nodeVersion: process.version,
