@@ -81,21 +81,31 @@ app.use(errorHandler);
 // Fonction d'initialisation
 async function initializeServer() {
   try {
+    console.log('📊 Step 1: Initializing database...');
     // Initialiser la base de données
     await initializeDatabase();
+    console.log('✅ Database initialized successfully');
     logger.info('Base de données initialisée avec succès');
 
+    console.log('📊 Step 2: Connecting to Redis...');
     // Connecter Redis
     await connectRedis();
+    console.log('✅ Redis connected successfully');
     logger.info('Redis connecté avec succès');
+
+    console.log('📊 Step 3: Starting HTTP server...');
 
     // Démarrer le serveur
     const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ HTTP Server started successfully on port ${PORT}`);
+      console.log(`🌐 Server accessible at http://0.0.0.0:${PORT}`);
       logger.info(`🚀 Serveur démarré sur le port ${PORT}`);
       logger.info(`🌍 Environnement: ${process.env.NODE_ENV}`);
       logger.info(`📱 WhatsApp Webhook: http://0.0.0.0:${PORT}/webhook`);
       logger.info(`🔗 API: http://0.0.0.0:${PORT}/api`);
     });
+
+    console.log('📊 Step 4: Server initialization completed successfully');
 
     // Gestion gracieuse de l'arrêt
     const gracefulShutdown = (signal) => {
@@ -118,7 +128,12 @@ async function initializeServer() {
 
 // Démarrer le serveur si ce fichier est exécuté directement
 if (require.main === module) {
-  initializeServer();
+  console.log('🔄 Starting server initialization...');
+  initializeServer().catch((error) => {
+    console.error('❌ Fatal error during server initialization:', error);
+    console.error('Stack trace:', error.stack);
+    process.exit(1);
+  });
 }
 
 module.exports = { app, initializeServer };
