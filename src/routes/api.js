@@ -43,7 +43,7 @@ router.get('/health', asyncHandler(async (req, res) => {
       database: dbHealth,
       redis: redisHealth,
       whatsapp: whatsappHealth,
-      googleAI: nlpHealth
+      openRouter: nlpHealth
     },
     system: {
       nodeVersion: process.version,

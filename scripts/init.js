@@ -126,11 +126,11 @@ async function configureEnvironment() {
   }
   envContent = envContent.replace(/REDIS_URL=.*/g, `REDIS_URL=${redisUrl}`);
   
-  // Google AI
-  log.info('\n🤖 Configuration Google AI:');
-  const googleAiKey = await question('Clé API Google AI: ');
-  if (googleAiKey) {
-    envContent = envContent.replace(/GOOGLE_AI_API_KEY=.*/g, `GOOGLE_AI_API_KEY=${googleAiKey}`);
+  // OpenRouter
+  log.info('\n🤖 Configuration OpenRouter:');
+  const openrouterKey = await question('Clé API OpenRouter: ');
+  if (openrouterKey) {
+    envContent = envContent.replace(/OPENROUTER_API_KEY=.*/g, `OPENROUTER_API_KEY=${openrouterKey}`);
   }
   
   // WhatsApp

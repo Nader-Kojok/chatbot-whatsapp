@@ -15,7 +15,7 @@ Cet agent WhatsApp intelligent est conçu pour fournir un service client automat
 
 ### Services Externes
 - **WhatsApp API**: WhatsApp Business API (officiel)
-- **NLP**: OpenAI GPT-4 ou Claude (multilingue FR/EN)
+- **NLP**: OpenRouter (accès unifié à 400+ modèles IA - OpenAI, Anthropic, Google, Meta, etc.)
 - **Monitoring**: Winston + Sentry (logs et erreurs)
 - **Déploiement**: Docker + Railway/Render
 

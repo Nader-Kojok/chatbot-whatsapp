@@ -22,7 +22,7 @@ Un agent WhatsApp intelligent pour le service client avec traitement du langage 
 - **Backend**: Node.js + Express.js
 - **Base de données**: PostgreSQL avec Prisma ORM
 - **Cache**: Redis
-- **IA/NLP**: Google AI (Gemini)
+- **IA/NLP**: OpenRouter (Multi-model AI API)
 - **API**: WhatsApp Business API
 - **Monitoring**: Winston + logs structurés
 
@@ -157,11 +157,12 @@ docker-compose --profile tools up -d
 - **Phone Number ID** : ID du numéro de téléphone WhatsApp
 - **Business Account ID** : ID du compte WhatsApp Business
 
-## 🔧 Configuration Google AI
+## 🔧 Configuration OpenRouter
 
-1. Créez un compte sur [Google AI Studio](https://makersuite.google.com/)
-2. Générez une clé API gratuite
-3. Ajoutez la clé dans votre fichier `.env`
+1. Créez un compte sur [OpenRouter](https://openrouter.ai/)
+2. Générez une clé API dans votre dashboard
+3. Ajoutez la clé dans votre fichier `.env` comme `OPENROUTER_API_KEY`
+4. OpenRouter donne accès à plus de 400 modèles IA (OpenAI, Anthropic, Google, Meta, etc.)
 
 ## 📊 Utilisation
 

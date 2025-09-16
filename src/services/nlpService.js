@@ -1,18 +1,23 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai');
 const { CacheService } = require('../config/redis');
 const logger = require('../utils/logger');
 const { OpenAIError } = require('../middleware/errorMiddleware');
 
 class NLPService {
   constructor() {
-    this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    this.model = this.genAI.getGenerativeModel({ 
-      model: process.env.GOOGLE_AI_MODEL || 'gemini-1.5-flash'
+    this.openai = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      defaultHeaders: {
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://localhost:3000',
+        'X-Title': process.env.OPENROUTER_SITE_NAME || 'WhatsApp Agent'
+      }
     });
     
     this.cacheService = new CacheService();
-    this.maxTokens = parseInt(process.env.GOOGLE_AI_MAX_TOKENS) || 1000;
-    this.temperature = parseFloat(process.env.GOOGLE_AI_TEMPERATURE) || 0.7;
+    this.model = process.env.OPENROUTER_MODEL || 'openai/gpt-3.5-turbo';
+    this.maxTokens = parseInt(process.env.OPENROUTER_MAX_TOKENS) || 1000;
+    this.temperature = parseFloat(process.env.OPENROUTER_TEMPERATURE) || 0.7;
     this.confidenceThreshold = parseFloat(process.env.NLP_CONFIDENCE_THRESHOLD) || 0.7;
     
     // Cache TTL pour les analyses NLP (30 minutes)
@@ -63,15 +68,19 @@ class NLPService {
       
       const fullPrompt = `${prompt.system}\n\nTexte à analyser: "${prompt.user}"\n\nRéponds uniquement avec un JSON valide.`;
       
-      const response = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-        generationConfig: {
-          maxOutputTokens: 500,
-          temperature: 0.3
-        }
+      const response = await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: fullPrompt
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.3
       });
 
-      const responseText = response.response.text();
+      const responseText = response.choices[0].message.content;
       const result = JSON.parse(responseText.replace(/```json|```/g, '').trim());
       
       // Valider et normaliser le résultat
@@ -122,19 +131,23 @@ class NLPService {
         return quickDetection;
       }
 
-      // Utiliser Google AI pour les cas complexes
+      // Utiliser OpenRouter pour les cas complexes
       const prompt = 'Détecte la langue du texte suivant. Réponds uniquement avec le code de langue (fr, en, es, etc.). Si incertain, réponds "unknown".';
       const fullPrompt = `${prompt}\n\nTexte: "${text}"`;
       
-      const response = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-        generationConfig: {
-          maxOutputTokens: 10,
-          temperature: 0.1
-        }
+      const response = await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: fullPrompt
+          }
+        ],
+        max_tokens: 10,
+        temperature: 0.1
       });
 
-      const detectedLanguage = response.response.text().trim().toLowerCase();
+      const detectedLanguage = response.choices[0].message.content.trim().toLowerCase();
       
       // Valider que c'est une langue supportée
       const finalLanguage = this.supportedLanguages.includes(detectedLanguage) ? detectedLanguage : null;
@@ -170,15 +183,19 @@ class NLPService {
 
       const fullPrompt = `${prompt}\n\nTexte: "${text}"\n\nRéponds uniquement avec un JSON valide.`;
 
-      const response = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-        generationConfig: {
-          maxOutputTokens: 100,
-          temperature: 0.3
-        }
+      const response = await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: fullPrompt
+          }
+        ],
+        max_tokens: 100,
+        temperature: 0.3
       });
 
-      const responseText = response.response.text();
+      const responseText = response.choices[0].message.content;
       const result = JSON.parse(responseText.replace(/```json|```/g, '').trim());
       
       await this.cacheService.set(cacheKey, result, this.cacheTTL);
@@ -210,15 +227,19 @@ class NLPService {
       const prompt = this.buildEntityExtractionPrompt(language);
       const fullPrompt = `${prompt}\n\nTexte: "${text}"\n\nRéponds uniquement avec un JSON valide.`;
 
-      const response = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-        generationConfig: {
-          maxOutputTokens: 300,
-          temperature: 0.2
-        }
+      const response = await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: fullPrompt
+          }
+        ],
+        max_tokens: 300,
+        temperature: 0.2
       });
 
-      const responseText = response.response.text();
+      const responseText = response.choices[0].message.content;
       const result = JSON.parse(responseText.replace(/```json|```/g, '').trim());
       
       await this.cacheService.set(cacheKey, result, this.cacheTTL);
@@ -249,15 +270,19 @@ class NLPService {
       const prompt = this.buildResponseGenerationPrompt(intent, entities, context, language);
       const fullPrompt = `${prompt.system}\n\n${prompt.user}`;
 
-      const response = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-        generationConfig: {
-          maxOutputTokens: this.maxTokens,
-          temperature: this.temperature
-        }
+      const response = await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: fullPrompt
+          }
+        ],
+        max_tokens: this.maxTokens,
+        temperature: this.temperature
       });
 
-      const generatedResponse = response.response.text().trim();
+      const generatedResponse = response.choices[0].message.content.trim();
       
       await this.cacheService.set(cacheKey, generatedResponse, this.cacheTTL);
       
@@ -467,12 +492,16 @@ Context: ${JSON.stringify(context)}`;
     try {
       const start = Date.now();
       
-      // Test simple avec Google AI
-      await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: 'Test' }] }],
-        generationConfig: {
-          maxOutputTokens: 5
-        }
+      // Test simple avec OpenRouter
+      await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: 'Test'
+          }
+        ],
+        max_tokens: 5
       });
       
       const duration = Date.now() - start;
@@ -480,7 +509,7 @@ Context: ${JSON.stringify(context)}`;
       return {
         status: 'healthy',
         responseTime: `${duration}ms`,
-        model: process.env.GOOGLE_AI_MODEL || 'gemini-1.5-flash',
+        model: this.model,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
