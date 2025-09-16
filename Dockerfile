@@ -11,6 +11,7 @@ RUN apk add --no-cache \
     g++ \
     openssl \
     openssl-dev \
+    wget \
     && rm -rf /var/cache/apk/*
 
 # Définir les variables d'environnement pour OpenSSL
@@ -48,8 +49,8 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 # Commande de santé
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Commande de démarrage
 CMD ["npm", "start"]

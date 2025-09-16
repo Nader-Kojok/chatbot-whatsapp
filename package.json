@@ -4,8 +4,8 @@
   "description": "Agent WhatsApp intelligent pour service client avec NLP avancé",
   "main": "src/server.js",
   "scripts": {
-    "start": "node test-server.js",
-    "start:full": "prisma migrate deploy && node src/server.js",
+    "start": "prisma migrate deploy && node src/server.js",
+    "start:test": "node test-server.js",
     "build": "prisma generate",
     "dev": "nodemon src/server.js",
     "test": "jest",

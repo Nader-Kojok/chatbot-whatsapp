@@ -10,6 +10,13 @@ console.log('Available env vars:', Object.keys(process.env).filter(key => key.in
 const server = http.createServer((req, res) => {
   console.log(`📥 Request: ${req.method} ${req.url}`);
   
+  // Health check endpoint for Railway
+  if (req.url === '/health' || req.url === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
+    return;
+  }
+  
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({
     status: 'OK',
